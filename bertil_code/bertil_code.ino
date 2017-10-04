@@ -17,9 +17,9 @@ int myLed  = 13;  // Set up pin 13 led for toggling
 WebSocketsServer webSocket = WebSocketsServer(80);
 const char* ssid     = "iPhone2";
 const char* password = "sealer6040";
-const int bluePin = 15;
-const int redPin = 13;
-const int greenPin = 12;
+const int bluePin = 0;
+const int redPin = 14;
+const int greenPin = 15;
 int value = 0;
 
 MPU9250 myIMU;
@@ -115,19 +115,29 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
 }
 
 
+void setColor(int red, int green, int blue)
+{
+  analogWrite(redPin, red);
+  analogWrite(greenPin, green);
+  analogWrite(bluePin, blue);  
+}
+
 
 void setup() {
+    pinMode(bluePin, OUTPUT);
+    pinMode(greenPin, OUTPUT);
+    pinMode(redPin, OUTPUT);
     Serial.begin(115200);
-    setColor(0,0,0);
     WiFi.begin(ssid, password);
-
+    setColor(255,0,0);
+    
     while(WiFi.status() != WL_CONNECTED) {
-        setColor(255,0,0);
+        
         delay(100);
         Serial.print(".");
     }
 
-    setColor(0,255,0);
+    setColor(0,0,255);
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
@@ -489,14 +499,3 @@ float getWeight(int s){
 }
 
 
-void setColor(int red, int green, int blue)
-{
-  #ifdef COMMON_ANODE
-    red = 255 - red;
-    green = 255 - green;
-    blue = 255 - blue;
-  #endif
-  analogWrite(redPin, red);
-  analogWrite(greenPin, green);
-  analogWrite(bluePin, blue);  
-}
