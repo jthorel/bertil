@@ -31,23 +31,35 @@ const int R_FORCE = 800;
 const float VDC = 3.3;
 const int EMPTY_VALUE = 370;
 const int FILL_VALUE = 900;
+unsigned long drinkTimer = 0;
+unsigned long delta = 0;
+unsigned long t = 0;
+unsigned long blinkPrev;
+unsigned long blinkMillis;
+bool ledState;
+bool drinking = false;
 
+const int warningThreshold1 = 10000;
+const int warningThreshold2 = 20000;
+
+// WEBSOCKET EVENT
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght) {
     switch(type) {
         case WStype_DISCONNECTED:
             break;
         case WStype_CONNECTED:
-         {
+        {
                 IPAddress ip = webSocket.remoteIP(num);
                 Serial.print("IP");
                 Serial.print(ip);
                 Serial.println();
-            }
-            break;
+        }
+        break;
+        
         case WStype_TEXT:
         {
-            
-            String text = String((char *) &payload[0]);
+          
+          String text = String((char *) &payload[0]);
           if(text=="LED"){
            
             digitalWrite(13,HIGH);
@@ -56,62 +68,54 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
             Serial.println("led just lit");
             webSocket.sendTXT(num, "led just lit", lenght);
             webSocket.broadcastTXT("nåntong annat", lenght);
-            }
+          }
             
-           if(text.startsWith("x")){
-            
+          if(text.startsWith("x")){  
             String xVal=(text.substring(text.indexOf("x")+1,text.length())); 
             int xInt = xVal.toInt();
             analogWrite(redPin,xInt); 
             Serial.println(xVal);
             webSocket.sendTXT(num, "red changed", lenght);
-           }
+          }
 
 
-           if(text.startsWith("y")){
+          if(text.startsWith("y")){
             
             String yVal=(text.substring(text.indexOf("y")+1,text.length())); 
             int yInt = yVal.toInt();
             analogWrite(greenPin,yInt); 
             Serial.println(yVal);
             webSocket.sendTXT(num, "green changed", lenght);
-           }
+          }
 
-           if(text.startsWith("z")){
+          if(text.startsWith("z")){
             
             String zVal=(text.substring(text.indexOf("z")+1,text.length())); 
             int zInt = zVal.toInt();
             analogWrite(bluePin,zInt); 
             Serial.println(zVal);
             webSocket.sendTXT(num, "blue changed", lenght);
-           }
-           if(text=="RESET"){
+          }
+          
+          if(text=="RESET"){
            
-           analogWrite(bluePin,LOW);
-           analogWrite(redPin,HIGH);
+            analogWrite(bluePin,LOW);
+            analogWrite(redPin,HIGH);
             analogWrite(greenPin,LOW);
             Serial.println("reset");
             
-            }
-            
-
-                            
-      }
-            
-           
-            webSocket.sendTXT(num, payload, lenght);
-            webSocket.broadcastTXT(payload, lenght);
-            break;
+          }                        
+        }      
+        webSocket.sendTXT(num, payload, lenght);
+        webSocket.broadcastTXT(payload, lenght);
+        break;
         
         case WStype_BIN:
-     
             hexdump(payload, lenght);
-
             // echo data back to browser
             webSocket.sendBIN(num, payload, lenght);
             break;
     }
-
 }
 
 
@@ -137,7 +141,7 @@ void setup() {
         Serial.print(".");
     }
 
-    setColor(0,0,255);
+    setColor(0,255,0);
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
@@ -270,7 +274,14 @@ void setup() {
 }
 
 void loop() {
+
+    unsigned long t2 = millis();
+    delta = t2-t;
+    t = t2;
+    drinkTimer += delta;
     webSocket.loop();
+    
+    
 
   // If intPin goes high, all data registers have new data
   // On interrupt, check if data ready interrupt
@@ -324,61 +335,61 @@ void loop() {
                          myIMU.gy * DEG_TO_RAD, myIMU.gz * DEG_TO_RAD, myIMU.my,
                          myIMU.mx, myIMU.mz, myIMU.deltat);
 
-  if (!AHRS)
-  {
-    myIMU.delt_t = millis() - myIMU.count;
-    if (myIMU.delt_t > 500)
-    {
-      if(SerialDebug)
-      {
-        // Print acceleration values in milligs!
-        
-        Serial.print("X-acceleration: "); Serial.print(1000 * myIMU.ax);
-        Serial.print(" mg ");
-        Serial.print("Y-acceleration: "); Serial.print(1000 * myIMU.ay);
-        Serial.print(" mg ");
-        Serial.print("Z-acceleration: "); Serial.print(1000 * myIMU.az);
-        Serial.println(" mg ");
-        
-  
-        // Print gyro values in degree/sec
-        /*
-        Serial.print("X-gyro rate: "); Serial.print(myIMU.gx, 3);
-        Serial.print(" degrees/sec ");
-        Serial.print("Y-gyro rate: "); Serial.print(myIMU.gy, 3);
-        Serial.print(" degrees/sec ");
-        Serial.print("Z-gyro rate: "); Serial.print(myIMU.gz, 3);
-        Serial.println(" degrees/sec");*/
-
-        // Print mag values in degree/sec
-        /*
-        Serial.print("X-mag field: "); Serial.print(myIMU.mx);
-        Serial.print(" mG ");
-        Serial.print("Y-mag field: "); Serial.print(myIMU.my);
-        Serial.print(" mG ");
-        Serial.print("Z-mag field: "); Serial.print(myIMU.mz);
-        Serial.println(" mG");*/
-
-        /*
-        myIMU.tempCount = myIMU.readTempData();  // Read the adc values
-        // Temperature in degrees Centigrade
-        myIMU.temperature = ((float) myIMU.tempCount) / 333.87 + 21.0;
-        // Print temperature in degrees Centigrade
-        Serial.print("Temperature is ");  Serial.print(myIMU.temperature, 1);
-        Serial.println(" degrees C");
-        */
-      }
-
-
-      myIMU.count = millis();
-      digitalWrite(myLed, !digitalRead(myLed));  // toggle led
-    } // if (myIMU.delt_t > 500)
-  } // if (!AHRS)
-  else
-  {
+//  if (!AHRS)
+//  {
+//    myIMU.delt_t = millis() - myIMU.count;
+//    if (myIMU.delt_t > 500)
+//    {
+//      if(SerialDebug)
+//      {
+//        // Print acceleration values in milligs!
+//        
+//        Serial.print("X-acceleration: "); Serial.print(1000 * myIMU.ax);
+//        Serial.print(" mg ");
+//        Serial.print("Y-acceleration: "); Serial.print(1000 * myIMU.ay);
+//        Serial.print(" mg ");
+//        Serial.print("Z-acceleration: "); Serial.print(1000 * myIMU.az);
+//        Serial.println(" mg ");
+//        
+//  
+//        // Print gyro values in degree/sec
+//        /*
+//        Serial.print("X-gyro rate: "); Serial.print(myIMU.gx, 3);
+//        Serial.print(" degrees/sec ");
+//        Serial.print("Y-gyro rate: "); Serial.print(myIMU.gy, 3);
+//        Serial.print(" degrees/sec ");
+//        Serial.print("Z-gyro rate: "); Serial.print(myIMU.gz, 3);
+//        Serial.println(" degrees/sec");*/
+//
+//        // Print mag values in degree/sec
+//        /*
+//        Serial.print("X-mag field: "); Serial.print(myIMU.mx);
+//        Serial.print(" mG ");
+//        Serial.print("Y-mag field: "); Serial.print(myIMU.my);
+//        Serial.print(" mG ");
+//        Serial.print("Z-mag field: "); Serial.print(myIMU.mz);
+//        Serial.println(" mG");*/
+//
+//        /*
+//        myIMU.tempCount = myIMU.readTempData();  // Read the adc values
+//        // Temperature in degrees Centigrade
+//        myIMU.temperature = ((float) myIMU.tempCount) / 333.87 + 21.0;
+//        // Print temperature in degrees Centigrade
+//        Serial.print("Temperature is ");  Serial.print(myIMU.temperature, 1);
+//        Serial.println(" degrees C");
+//        */
+//      }
+//
+//
+//      myIMU.count = millis();
+//      digitalWrite(myLed, !digitalRead(myLed));  // toggle led
+//    } // if (myIMU.delt_t > 500)
+//  } // if (!AHRS)
+//  else
+  //{
     // Serial print and/or display at 0.5 s rate independent of data rates
     myIMU.delt_t = millis() - myIMU.count;
-
+    
     // update LCD once per half-second independent of read rate
     if (myIMU.delt_t > 500)
     {
@@ -408,22 +419,22 @@ void loop() {
         */
       }
 
-// Define output variables from updated quaternion---these are Tait-Bryan
-// angles, commonly used in aircraft orientation. In this coordinate system,
-// the positive z-axis is down toward Earth. Yaw is the angle between Sensor
-// x-axis and Earth magnetic North (or true North if corrected for local
-// declination, looking down on the sensor positive yaw is counterclockwise.
-// Pitch is angle between sensor x-axis and Earth ground plane, toward the
-// Earth is positive, up toward the sky is negative. Roll is angle between
-// sensor y-axis and Earth ground plane, y-axis up is positive roll. These
-// arise from the definition of the homogeneous rotation matrix constructed
-// from quaternions. Tait-Bryan angles as well as Euler angles are
-// non-commutative; that is, the get the correct orientation the rotations
-// must be applied in the correct order which for this configuration is yaw,
-// pitch, and then roll.
-// For more see
-// http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-// which has additional links.
+      // Define output variables from updated quaternion---these are Tait-Bryan
+      // angles, commonly used in aircraft orientation. In this coordinate system,
+      // the positive z-axis is down toward Earth. Yaw is the angle between Sensor
+      // x-axis and Earth magnetic North (or true North if corrected for local
+      // declination, looking down on the sensor positive yaw is counterclockwise.
+      // Pitch is angle between sensor x-axis and Earth ground plane, toward the
+      // Earth is positive, up toward the sky is negative. Roll is angle between
+      // sensor y-axis and Earth ground plane, y-axis up is positive roll. These
+      // arise from the definition of the homogeneous rotation matrix constructed
+      // from quaternions. Tait-Bryan angles as well as Euler angles are
+      // non-commutative; that is, the get the correct orientation the rotations
+      // must be applied in the correct order which for this configuration is yaw,
+      // pitch, and then roll.
+      // For more see
+      // http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+      // which has additional links.
       myIMU.yaw   = atan2(2.0f * (*(getQ()+1) * *(getQ()+2) + *getQ()
                     * *(getQ()+3)), *getQ() * *getQ() + *(getQ()+1)
                     * *(getQ()+1) - *(getQ()+2) * *(getQ()+2) - *(getQ()+3)
@@ -458,37 +469,47 @@ void loop() {
         Serial.println(" Hz");*/
       }
 
-      myIMU.count = millis();
-      myIMU.sumCount = 0;
-      myIMU.sum = 0;
+
 
       // COUNT DRINKS WHEN TILTING > 90 degrees
-      if(prevValue < 0 && myIMU.pitch > 0){
-        drinks++;
+
+      
+      if(prevValue < 0 ){
+        //setColor(0,255,0);
+        if(myIMU.pitch > 0){
+          drinking = true;
+          drinks++;
+          setColor(255,0,255);
+          drinkTimer = 0;
+        } else {
+          drinking = false;
+        }
       }
+
       prevValue = myIMU.pitch;
-
+      
       // READ FORCE SENSOR
-      int sensorValue = analogRead(A0);
+      //int sensorValue = analogRead(A0);
 
-      
-
-
-      float ml = getWeight(sensorValue);
-      
-      String v = "Drinks: " + String(drinks) + "<br/>Amount of water: " + String(ml) + " ml";
+      //float ml = getWeight(sensorValue);
+      String v = "Drinks: " + String(drinks) + "<br/>Time since last drink: " + String(drinkTimer/60000) + " minutes";
       webSocket.broadcastTXT(v);
 
 
       // PRINT VALUES
       if(drinkDebug){
         Serial.println("Drinks: " + String(drinks));
-        Serial.println(ml);
+        //Serial.println(ml);
+        Serial.println(drinkTimer);
       }
-      
+
+      myIMU.count = millis();
+      myIMU.sumCount = 0;
+      myIMU.sum = 0;
     } // if (myIMU.delt_t > 500)
-  } // if (AHRS)
-    
+  //} // if (AHRS)
+  
+  checkDrinkWarning();
 }
 
 
@@ -496,6 +517,44 @@ float getWeight(int s){
   float map_factor = 750/(FILL_VALUE-EMPTY_VALUE);
   float ml = map(s, EMPTY_VALUE, FILL_VALUE, 0, 750);
   return ml;
+}
+
+void blinkRGB(int r, int g, int b, int interval) {
+  blinkMillis = millis();
+  if (blinkMillis - blinkPrev >= interval) {
+    // save the last time you blinked the LED
+    blinkPrev = blinkMillis;
+
+    // if the LED is off turn it on and vice-versa:
+    if (ledState == true) {
+      ledState = false;
+      setColor(0,0,0);
+    } else {
+      ledState = true;
+      setColor(r,g,b);
+    }
+  }
+}
+
+void checkDrinkWarning(){
+  int minutes = drinkTimer;
+  if(!drinking){
+    if(minutes > warningThreshold2){
+      drinkWarning(warningThreshold2);
+    } else if(minutes > warningThreshold1){
+      drinkWarning(warningThreshold1);
+    } else {
+      setColor(0,150,0);    
+    }
+  }   
+}
+
+void drinkWarning(int t){
+  if(t == warningThreshold1){
+    blinkRGB(255,255,0,200);
+  } else if(t == warningThreshold2){
+    blinkRGB(255,0,0,100);
+  }
 }
 
 

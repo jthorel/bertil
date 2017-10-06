@@ -47,59 +47,59 @@
         <input type="button" onClick="sendToSocket()" value="Tell sockeT!"/>-->
         <script type="text/javascript">
 
-        //sendGetReq();
-        var connection = new WebSocket("ws://192.168.43.110", ["arduino"]);
-        //connection = new WebSocket(ipValue, ['arduino']); 
-        
-        connection.onopen = function () {
-            connection.send('Message from Browser to ESP8266 yay its Working!! ' + new Date()); 
-            connection.send('ping');
-            //ws.send("Hello, Ardunio");
-        };
-        connection.onerror = function (error) {
-            console.log('WebSocket Error ', error);
-        };
+            //sendGetReq();
+            var connection = new WebSocket("ws://172.20.10.5", ["arduino"]);
+            //connection = new WebSocket(ipValue, ['arduino']);
 
-        connection.onmessage = function (event) {
-          //console.log(event);
-          updateTilts(event.data);
-        }
+            connection.onopen = function () {
+                // connection.send('Message from Browser to ESP8266 yay its Working!! ' + new Date());
+                // connection.send('ping');
+                //ws.send("Hello, Ardunio");
+            };
+            connection.onerror = function (error) {
+                console.log('WebSocket Error ', error);
+            };
 
-        function sendToSocket() {
-            console.log("Sending message");
-            var x = 7;
-            connection.send("LED"); 
-        }
-
-        function sendGetReq() {
-            var req = new XMLHttpRequest();
-            req.open('GET', "http://192.168.43.110", true);
-            req.send();
-            req.onreadystatechange = processRequest;
-        }
-
-        function processRequest(e) {
-            var req = e.target;
-            if (req.readyState == 4) {
-                // time to partay!!!
-                var response = JSON.parse(req.responseText);
-                console.log("hej",response);
-                updateTilts(response);
+            connection.onmessage = function (event) {
+            //console.log(event);
+            updateTilts(event.data);
             }
-        }
-        function updateTilts(value) {
-            var div = document.getElementById('tiltNumerId');
-            div.innerHTML = value;
-        }
 
-        function sleep(milliseconds) {
-          var start = new Date().getTime();
-          for (var i = 0; i < 1e7; i++) {
-            if ((new Date().getTime() - start) > milliseconds){
-              break;
+            function sendToSocket() {
+                console.log("Sending message");
+                var x = 7;
+                connection.send("LED");
             }
-          }
-        }
+
+            function sendGetReq() {
+                var req = new XMLHttpRequest();
+                req.open('GET', "http://192.168.43.110", true);
+                req.send();
+                req.onreadystatechange = processRequest;
+            }
+
+            function processRequest(e) {
+                var req = e.target;
+                if (req.readyState == 4) {
+                    // time to partay!!!
+                    var response = JSON.parse(req.responseText);
+                    console.log("hej",response);
+                    updateTilts(response);
+                }
+            }
+            function updateTilts(value) {
+                var div = document.getElementById('tiltNumerId');
+                div.innerHTML = value;
+            }
+
+            function sleep(milliseconds) {
+                var start = new Date().getTime();
+                for (var i = 0; i < 1e7; i++) {
+                    if ((new Date().getTime() - start) > milliseconds){
+                        break;
+                    }
+                }
+            }
         </script>
 
     </body>
