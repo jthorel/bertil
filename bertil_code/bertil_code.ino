@@ -5,13 +5,19 @@
 #include "quaternionFilters.h"
 #include "MPU9250.h"
 
+
+// DEBUGGING
 #define AHRS true         // Set to false for basic data read
 #define SerialDebug false  // Set to true to get Serial output for debugging
 #define drinkDebug true
+#define wifi wifi
+#define forceDebug true
+
 
 // Pin definitions
 int intPin = 12;  // These can be changed, 2 and 3 are the Arduinos ext int pins
 int myLed  = 13;  // Set up pin 13 led for toggling
+
 
 //ESP8266WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(80);
@@ -38,27 +44,197 @@ unsigned long blinkPrev;
 unsigned long blinkMillis;
 bool ledState;
 bool drinking = false;
+bool liftingState = false;
+bool lastLiftingState = false;
+bool tilted = false;
+int waterAmount = 0;
+int drankAmount = 0;
+int totalWaterIntake = 0;
 
-const int warningThreshold1 = 10000;
-const int warningThreshold2 = 20000;
 
-// WEBSOCKET EVENT
+// smoothing average resolution
+int SAMPLES = 50;
+int TOLERANCE = 5;
+
+
+// drink warning levels
+// 10 sec & 20 sec
+int warningThreshold1 = 10000;
+int warningThreshold2 = 20000;
+int warningThreshold3 = 30000;
+
+
+// function
+// check if weight is "stable" and read
+int analogSmoothRead(int pin) {
+  bool timeout = false;
+  int s_val[SAMPLES];
+  int timer = 0;
+  
+  while(!timeout){
+    // Gather sample data 
+    float sampleSum = 0.0;
+    for(int i = 0; i < SAMPLES; i++) {
+      s_val[i] = analogRead(pin);
+      sampleSum += s_val[i];
+      delay(1); // set this to whatever you want
+    }
+    float meanSample = float(sampleSum)/float(SAMPLES);
+  
+    // HOW TO FIND STANDARD DEVIATION
+    // STEP 1, FIND THE MEAN. (We Just did.)
+    // STEP 2, sum the squares of the differences from the mean
+    float sqDevSum = 0.0;
+    for(int i = 0; i < SAMPLES; i++) {
+      // pow(x, 2) is x squared.
+      sqDevSum += pow((meanSample - float(s_val[i])), 2);
+    }
+  
+    // STEP 3, FIND THE MEAN OF THAT
+    // STEP 4, TAKE THE SQUARE ROOT OF THAT
+    float stDev = sqrt(sqDevSum/float(SAMPLES));
+    
+    // TADA, STANDARD DEVIATION.
+    // this is in units of sensor ticks (0-1023)
+    if(stDev < TOLERANCE) {
+      // reading is stable enough
+      return int(meanSample);
+    }  
+    timer += timer;
+    if(timer > 5000){
+      Serial.println("Timed out");
+      timeout = true;
+    }
+  }
+  // if timed out
+  return waterAmount;
+}
+
+
+void checkTilted(){
+  
+}
+
+
+// Check the lifted state
+//
+void checkLifted(){
+  lastLiftingState = liftingState;
+  if(analogRead(A0) < 20 ) {
+    liftingState = true;
+    if(forceDebug){
+      //Serial.println("lifted");
+    }
+  } else {
+    liftingState = false;
+    if(forceDebug){
+      //Serial.println(" not lifted");
+    }
+  }
+  
+  if(liftingState != lastLiftingState) {
+    if(!liftingState) {  // state changed from lifted to not lifted (set down bottle)
+      if(tilted){
+        int newWaterAmount = analogSmoothRead(A0);
+        Serial.println(" drank water! ");
+        drankAmount = waterAmount - newWaterAmount;
+        Serial.println(String(drankAmount));
+        waterAmount = waterAmount - drankAmount;
+        totalWaterIntake = totalWaterIntake + drankAmount;
+        tilted = false;
+        if(forceDebug){
+          Serial.println("total water: "+String(getML(waterAmount)));
+          Serial.println("total consumed: "+String(getML(totalWaterIntake)));
+        }        
+      } else { // set down without drinking
+        waterAmount = analogSmoothRead(A0);
+      }
+    } 
+  } else if(!liftingState){  // it's not lifted and has not been "set down" (its grounded)
+        tilted = false;
+        //waterAmount = analogRead(A0);
+  }
+}
+
+
+// Convert sensor reading to water amount
+//
+float getML(int s){
+  float map_factor = 750/(FILL_VALUE-EMPTY_VALUE);
+  float ml = map(s, EMPTY_VALUE, FILL_VALUE, 0, 750);
+  return ml;
+}
+
+
+// Change color on the rgb
+void setColor(int red, int green, int blue)
+{
+  analogWrite(redPin, red);
+  analogWrite(greenPin, green);
+  analogWrite(bluePin, blue);  
+}
+
+
+void blinkRGB(int r, int g, int b, int interval) {
+  blinkMillis = millis();
+  if (blinkMillis - blinkPrev >= interval) {
+    // save the last time you blinked the LED
+    blinkPrev = blinkMillis;
+
+    // if the LED is off turn it on and vice-versa:
+    if (ledState == true) {
+      ledState = false;
+      setColor(0,0,0);
+    } else {
+      ledState = true;
+      setColor(r,g,b);
+    }
+  }
+}
+
+void drinkWarning(int t){
+  if(t == warningThreshold1){
+    setColor(0,0,255);
+  } else if(t == warningThreshold2){
+    blinkRGB(0,0,255,200);
+  } else if(t == warningThreshold3){
+    blinkRGB(0,0,255,100);
+  }
+}
+
+
+void checkDrinkWarning(){
+  int minutes = drinkTimer;
+  if(!tilted){
+    if(minutes > warningThreshold3){
+      drinkWarning(warningThreshold3);
+    } else if(minutes > warningThreshold2){
+      drinkWarning(warningThreshold2);
+    } else if(minutes > warningThreshold1){
+      drinkWarning(warningThreshold1);
+    } else {
+      setColor(0,0,0);    
+    }
+  }   
+}
+
+
+// WEBSOCKET EVENT, RECEIVE MESSAGES
+// prepend with different characters for different messages
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght) {
     switch(type) {
         case WStype_DISCONNECTED:
-            break;
+          break;
         case WStype_CONNECTED:
         {
-                IPAddress ip = webSocket.remoteIP(num);
-                Serial.print("IP");
-                Serial.print(ip);
-                Serial.println();
-        }
-        break;
-        
+          IPAddress ip = webSocket.remoteIP(num);
+          Serial.print("IP");
+          Serial.print(ip);
+          Serial.println();  
+          break;
+        } 
         case WStype_TEXT:
         {
-          
           String text = String((char *) &payload[0]);
           if(text=="LED"){
            
@@ -104,27 +280,23 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
             analogWrite(greenPin,LOW);
             Serial.println("reset");
             
-          }                        
-        }      
-        webSocket.sendTXT(num, payload, lenght);
-        webSocket.broadcastTXT(payload, lenght);
-        break;
-        
+          }                              
+          webSocket.sendTXT(num, payload, lenght);
+          webSocket.broadcastTXT(payload, lenght);
+          break;
+        }
         case WStype_BIN:
-            hexdump(payload, lenght);
-            // echo data back to browser
-            webSocket.sendBIN(num, payload, lenght);
-            break;
+        {
+          hexdump(payload, lenght);
+          // echo data back to browser
+          webSocket.sendBIN(num, payload, lenght);
+          break;
+        }
     }
 }
 
 
-void setColor(int red, int green, int blue)
-{
-  analogWrite(redPin, red);
-  analogWrite(greenPin, green);
-  analogWrite(bluePin, blue);  
-}
+
 
 
 void setup() {
@@ -132,21 +304,26 @@ void setup() {
     pinMode(greenPin, OUTPUT);
     pinMode(redPin, OUTPUT);
     Serial.begin(115200);
-    WiFi.begin(ssid, password);
-    setColor(255,0,0);
-    
-    while(WiFi.status() != WL_CONNECTED) {
-        
-        delay(100);
-        Serial.print(".");
+
+    waterAmount = analogSmoothRead(A0);
+    if(wifi){
+      WiFi.begin(ssid, password);
+      setColor(255,0,0);
+      
+      while(WiFi.status() != WL_CONNECTED) {
+          
+          delay(100);
+          Serial.print(".");
+      }
+  
+      setColor(0,255,0);
+      Serial.println("WiFi connected");
+      Serial.println("IP address: ");
+      Serial.println(WiFi.localIP());
+      webSocket.begin();
+      webSocket.onEvent(webSocketEvent);      
     }
 
-    setColor(0,255,0);
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
-    webSocket.begin();
-    webSocket.onEvent(webSocketEvent);
     Wire.begin();
   // TWBR = 12;  // 400 kbit/sec I2C speed
 
@@ -273,15 +450,18 @@ void setup() {
   }
 }
 
+
+
+//////////////////////////////////////////////////////
 void loop() {
 
-    unsigned long t2 = millis();
-    delta = t2-t;
-    t = t2;
-    drinkTimer += delta;
-    webSocket.loop();
-    
-    
+  unsigned long t2 = millis();
+  delta = t2-t;
+  t = t2;
+  drinkTimer += delta;
+  webSocket.loop();
+  checkLifted();
+  
 
   // If intPin goes high, all data registers have new data
   // On interrupt, check if data ready interrupt
@@ -471,36 +651,36 @@ void loop() {
 
 
 
-      // COUNT DRINKS WHEN TILTING > 90 degrees
-
-      
+      // CHECK TILT WHEN TILTING > 90 degrees
       if(prevValue < 0 ){
         //setColor(0,255,0);
         if(myIMU.pitch > 0){
-          drinking = true;
+          if(liftingState){
+            tilted = true; // tilted while lifting?
+          }
           drinks++;
-          setColor(255,0,255);
+          //setColor(255,0,255);
           drinkTimer = 0;
-        } else {
-          drinking = false;
         }
       }
-
       prevValue = myIMU.pitch;
+
+
       
       // READ FORCE SENSOR
       //int sensorValue = analogRead(A0);
 
       //float ml = getWeight(sensorValue);
-      String v = "Drinks: " + String(drinks) + "<br/>Time since last drink: " + String(drinkTimer/60000) + " minutes";
+      String v = "Drinks: " + String(drinks) + "<br/>Time since last drink: " + String(drinkTimer/60000) + " minutes<br/>Water in bottle: " + String(getML(waterAmount)) + " ml<br/>You have consumed " + String(getML(drankAmount)) + " ml of water today";
       webSocket.broadcastTXT(v);
 
 
       // PRINT VALUES
       if(drinkDebug){
-        Serial.println("Drinks: " + String(drinks));
+        Serial.print("Water: ");Serial.println(String(waterAmount));
+        //Serial.println("Drinks: " + String(drinks));
         //Serial.println(ml);
-        Serial.println(drinkTimer);
+        //Serial.println(drinkTimer);
       }
 
       myIMU.count = millis();
@@ -510,51 +690,10 @@ void loop() {
   //} // if (AHRS)
   
   checkDrinkWarning();
+  
 }
 
 
-float getWeight(int s){
-  float map_factor = 750/(FILL_VALUE-EMPTY_VALUE);
-  float ml = map(s, EMPTY_VALUE, FILL_VALUE, 0, 750);
-  return ml;
-}
 
-void blinkRGB(int r, int g, int b, int interval) {
-  blinkMillis = millis();
-  if (blinkMillis - blinkPrev >= interval) {
-    // save the last time you blinked the LED
-    blinkPrev = blinkMillis;
-
-    // if the LED is off turn it on and vice-versa:
-    if (ledState == true) {
-      ledState = false;
-      setColor(0,0,0);
-    } else {
-      ledState = true;
-      setColor(r,g,b);
-    }
-  }
-}
-
-void checkDrinkWarning(){
-  int minutes = drinkTimer;
-  if(!drinking){
-    if(minutes > warningThreshold2){
-      drinkWarning(warningThreshold2);
-    } else if(minutes > warningThreshold1){
-      drinkWarning(warningThreshold1);
-    } else {
-      setColor(0,150,0);    
-    }
-  }   
-}
-
-void drinkWarning(int t){
-  if(t == warningThreshold1){
-    blinkRGB(255,255,0,200);
-  } else if(t == warningThreshold2){
-    blinkRGB(255,0,0,100);
-  }
-}
 
 
