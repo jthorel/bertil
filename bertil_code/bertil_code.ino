@@ -10,7 +10,7 @@
 #define AHRS true         // Set to false for basic data read
 #define SerialDebug false  // Set to true to get Serial output for debugging
 #define drinkDebug true
-#define wifi wifi
+#define wifi false
 #define forceDebug true
 
 
@@ -120,7 +120,7 @@ void checkTilted(){
 //
 void checkLifted(){
   lastLiftingState = liftingState;
-  if(analogRead(A0) < 20 ) {
+  if(analogSmoothRead(A0) < 20 ) {
     liftingState = true;
     if(forceDebug){
       //Serial.println("lifted");
@@ -150,7 +150,7 @@ void checkLifted(){
         waterAmount = analogSmoothRead(A0);
       }
     } 
-  } else if(!liftingState){  // it's not lifted and has not been "set down" (its grounded)
+  } else if(!liftingState && tilted){  // it's not lifted and has not been "set down" (its grounded)
         tilted = false;
         //waterAmount = analogRead(A0);
   }
@@ -205,7 +205,7 @@ void drinkWarning(int t){
 
 void checkDrinkWarning(){
   int minutes = drinkTimer;
-  if(!tilted){
+  if(!tilted){ // add lifted state
     if(minutes > warningThreshold3){
       drinkWarning(warningThreshold3);
     } else if(minutes > warningThreshold2){
