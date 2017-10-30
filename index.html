@@ -8,6 +8,7 @@
         <meta name='viewport' content='width=device-width, initial-scale=1, shrink-to-fit=no'>
 
         <link rel='apple-touch-icon' href='icon.png'>
+        <link rel="stylesheet" type="text/css" href="style.css"/>
         <!-- Place favicon.ico in the root directory -->
 
         <style>
@@ -19,15 +20,11 @@
                 margin: 0;
             }
             body {
-                background: #ccffe6;
+                background: #f5f9ff;
                 font-family: sans-serif;
                 font-size: 11pt;
             }
-            .container {
-                max-width: 550px;
-                margin: 0 auto;
-                text-align: center;
-            }
+
             .huge {
                 font-size: 42pt;
             }
@@ -39,14 +36,23 @@
         <![endif]-->
 
         <div class='container'>
+            <!--
             <p>Hello world! Tilt your bottle.</p>
             <p class='huge' id='tiltNumerId'>0</p>
             <p>number of tilts</p>
+            -->
+            <div class='dropcontainer'>
+                <img src='drop.png' id='drop'/>    
+            </div>
+            <div class='text' id='text'>
+                Daily goal: 3000ml
+            </div>
         </div>
+
+
         <!--<INPUT TYPE=BUTTON OnClick="sendGetReq();" VALUE="Send Request"/>
         <input type="button" onClick="sendToSocket()" value="Tell sockeT!"/>-->
         <script type="text/javascript">
-
             //sendGetReq();
             var connection = new WebSocket("ws://172.20.10.5", ["arduino"]);
             //connection = new WebSocket(ipValue, ['arduino']);
@@ -63,6 +69,7 @@
             connection.onmessage = function (event) {
             //console.log(event);
             updateTilts(event.data);
+            parseMessage(event.data);
             }
 
             function sendToSocket() {
@@ -100,6 +107,21 @@
                     }
                 }
             }
+
+            function fillDrop(fill){
+                document.getElementById('drop').style.clip = "rect("+fill+"px, 150px, 150px, 0px)";
+            }
+
+            function parseMessage(message){
+                var values = message.split(' ');
+                var totWaterIntake = parseInt(values[0]);
+                var waterAmount = parseInt(values[1]);
+                var waterGoal = parseInt(values[2]);
+                fillDrop(totWaterIntake);
+                document.getElementById('text').innerHTML = "Daily goal: " + waterGoal + "ml<br/>Water in bottle: "+waterAmount + "ml";
+            }
+
+            parseMessage("100 400 3000");
         </script>
 
     </body>

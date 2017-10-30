@@ -1,0 +1,42 @@
+.dropcontainer {
+    margin: auto;
+    background-image: url('emptydrop.png');
+    background-size: 150px 150px;
+    width: 150px;
+    height: 150px;
+    
+}
+
+.dropcontainer img {
+    width: 150px;
+    height: 150px;
+    position: absolute;
+    clip: rect(100px, 150px, 150px, 0px);
+    -webkit-transition: clip 1s;
+    transition: clip 1s;
+    
+}
+
+.container {
+    max-width: 550px;
+    margin: 100px auto;
+}
+
+.text {
+    text-align: center;
+}
+
+/* css drop */
+.droplet {
+    background-color:rgba(0,0,0,0);
+    width: 150px;
+    height: 150px;
+    -webkit-border-top-left-radius: 0;
+    -webkit-border-top-right-radius: 75px;
+    -webkit-border-bottom-right-radius: 75px;
+    -webkit-border-bottom-left-radius: 75px;
+    -webkit-transform:rotate(45deg);
+    box-shadow: 1px 1px 7px #1a1a1a;
+}
+
+

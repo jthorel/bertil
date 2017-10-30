@@ -12,6 +12,7 @@
 #define drinkDebug true
 #define wifi false
 #define forceDebug true
+#define waterDebug true
 
 
 // Pin definitions
@@ -46,10 +47,17 @@ bool ledState;
 bool drinking = false;
 bool liftingState = false;
 bool lastLiftingState = false;
-bool tilted = false;
+bool hasBeenTilted = false;
 int waterAmount = 0;
 int drankAmount = 0;
 int totalWaterIntake = 0;
+int totalWaterIntakeWarning = 500;
+unsigned long decayTimer = 0;
+int waterGoal = 3000; // in milliliters
+
+
+const int waterDecayTime = 60000; // when to decay water (in milliseconds, 60000 equals 1 minute)
+const int waterDecayAmount = waterGoal / (24*60); // decay this much (ml) per waterDecayTime
 
 
 // smoothing average resolution
@@ -59,28 +67,13 @@ int TOLERANCE = 5;
 
 // drink warning levels
 // 10 sec & 20 sec
-int warningThreshold1 = 10000;
-int warningThreshold2 = 20000;
-int warningThreshold3 = 30000;
+int warningThreshold1 = 100;
+int warningThreshold2 = 200;
+int warningThreshold3 = 300;
 
 
 
-// CHECK IF LIFTED AND TILTED OVER 90
-void checkTilted() {
-  // CHECK TILT WHEN TILTING > 90 degrees
-  if(prevValue < 0 ){
-    //setColor(0,255,0);
-    if(myIMU.pitch > 0){
-      if(liftingState){
-        tilted = true; // tilted while lifting?
-      }
-      drinks++;
-      //setColor(255,0,255);
-      drinkTimer = 0;
-    }
-  }
-  prevValue = myIMU.pitch;
-}
+
 
 
 // function
@@ -120,7 +113,7 @@ int analogSmoothRead(int pin) {
       return int(meanSample);
     }  
     timer += timer;
-    if(timer > 5000){
+    if(timer > 500){
       Serial.println("Timed out");
       timeout = true;
     }
@@ -130,54 +123,106 @@ int analogSmoothRead(int pin) {
 }
 
 
-void checkTilted(){
-  
+// CHECK IF LIFTED AND TILTED OVER 90
+void checkTilted() {
+  // CHECK TILT WHEN TILTING > 90 degrees
+  float tilt = myIMU.pitch;
+  Serial.println(tilt);
+  if(prevValue < 0 ){
+    //setColor(0,255,0);
+    if(tilt > 0){
+      if(liftingState){
+        hasBeenTilted = true; // tilted while lifting?
+        if(forceDebug){
+          Serial.println("tilted");
+        }
+      }
+      //setColor(255,0,255);
+      
+    }
+  }
+  prevValue = tilt;
 }
 
+// DECAY total amount of water drank for warnings
+void decayWater(){
+  decayTimer = decayTimer + delta;
+  if(decayTimer >= waterDecayTime){ 
+    decayTimer = 0;
+    if(totalWaterIntakeWarning > 0){
+      totalWaterIntakeWarning = totalWaterIntakeWarning - waterDecayAmount;
+    }
+      
+    if(waterDebug){
+      Serial.println("Waterdecay:" + String(totalWaterIntakeWarning));
+    }
+  }
+}
 
-// Check the lifted state
-//
+// Check the lifted state and state changes
+// Measures the water amount when put down and has been tilted.
+// Adds it to the total drink amount
 void checkLifted(){
-  lastLiftingState = liftingState;
   if(analogSmoothRead(A0) < 20 ) {
     liftingState = true;
     if(forceDebug){
-      //Serial.println("lifted");
+      Serial.println("lifted");
     }
   } else {
     liftingState = false;
     if(forceDebug){
-      //Serial.println(" not lifted");
+      Serial.println(" not lifted");
     }
   }
   
-  if(liftingState != lastLiftingState) {
+  if(liftingState != lastLiftingState) { // state change
     if(!liftingState) {  // state changed from lifted to not lifted (set down bottle)
-      if(tilted){
-        int newWaterAmount = analogSmoothRead(A0);
+      if(hasBeenTilted){ // has it been tilted? (not "is it currently tilted")
+        
+        // read water amount in bottle
+        int newWaterAmount = getML(analogSmoothRead(A0));
         Serial.println(" drank water! ");
-        drankAmount = waterAmount - newWaterAmount;
-        Serial.println(String(drankAmount));
-        waterAmount = waterAmount - drankAmount;
-        totalWaterIntake = totalWaterIntake + drankAmount;
-        tilted = false;
+        drinkTimer = 0;
+        drinks++;
+
+        // check difference
+        if(newWaterAmount < waterAmount){ // filled it up?
+           // water removed, drank water
+          drankAmount = waterAmount - newWaterAmount;
+          if(waterDebug){
+            Serial.println(String(drankAmount));
+          }
+
+          // add to total sum of water 
+          totalWaterIntake = totalWaterIntake + drankAmount;    
+          // reset the water sum timer
+          totalWaterIntakeWarning = totalWaterIntake;
+        }
+        // update new water amount in bottle
+        waterAmount = newWaterAmount;
+
+        // reset has been tilted
+        hasBeenTilted = false;
+        
         if(forceDebug){
           Serial.println("total water: "+String(getML(waterAmount)));
           Serial.println("total consumed: "+String(getML(totalWaterIntake)));
         }        
-      } else { // set down without drinking
-        waterAmount = analogSmoothRead(A0);
+      } else { // set down without drinking, filled up?
+        waterAmount = newWaterAmount;
       }
     } 
-  } else if(!liftingState && tilted){  // it's not lifted and has not been "set down" (its grounded)
-        tilted = false;
+  } else if(!liftingState && hasBeenTilted){  // it's not lifted and has not been "set down" (its grounded)
+        hasBeenTilted = false;
         //waterAmount = analogRead(A0);
   }
+
+  lastLiftingState = liftingState;
 }
 
 
 // Convert sensor reading to water amount
-//
+// 
 float getML(int s){
   float map_factor = 750/(FILL_VALUE-EMPTY_VALUE);
   float ml = map(s, EMPTY_VALUE, FILL_VALUE, 0, 750);
@@ -223,18 +268,21 @@ void drinkWarning(int t){
 
 
 void checkDrinkWarning(){
-  int minutes = drinkTimer;
-  if(!tilted){ // add lifted state
-    if(minutes > warningThreshold3){
-      drinkWarning(warningThreshold3);
-    } else if(minutes > warningThreshold2){
-      drinkWarning(warningThreshold2);
-    } else if(minutes > warningThreshold1){
-      drinkWarning(warningThreshold1);
+  int ml = totalWaterIntakeWarning;
+  //if(!hasBeenTilted){ // add lifted state
+    if(ml < warningThreshold1){
+      blinkRGB(0,0,255,100);
+      //drinkWarning(warningThreshold3);
+    } else if(ml < warningThreshold2){
+      blinkRGB(0,0,255,200);
+      //drinkWarning(warningThreshold2);
+    } else if(ml < warningThreshold3){
+      setColor(0,0,255);
+      //drinkWarning(warningThreshold1);
     } else {
       setColor(0,0,0);    
     }
-  }   
+  //}   
 }
 
 
@@ -324,7 +372,7 @@ void setup() {
     pinMode(redPin, OUTPUT);
     Serial.begin(115200);
 
-    waterAmount = analogSmoothRead(A0);
+    waterAmount = getML(analogSmoothRead(A0));
     if(wifi){
       WiFi.begin(ssid, password);
       setColor(255,0,0);
@@ -360,6 +408,7 @@ void setup() {
   Serial.print(F(" I should be 0x"));
   Serial.println(0x71, HEX);
 
+    
   if (c == 0x71) // WHO_AM_I should always be 0x71
   {
     Serial.println(F("MPU9250 is online..."));
@@ -479,7 +528,7 @@ void loop() {
   t = t2;
   drinkTimer += delta;
   webSocket.loop();
-  checkLifted();
+  
   
 
   // If intPin goes high, all data registers have new data
@@ -670,15 +719,17 @@ void loop() {
 
 
       // check if lifted and tilted 
-      checkTilt();
-
+      checkTilted();
+      checkLifted();
       
-      // READ FORCE SENSOR
-      //int sensorValue = analogRead(A0);
 
-      //float ml = getWeight(sensorValue);
-      String v = "Drinks: " + String(drinks) + "<br/>Time since last drink: " + String(drinkTimer/60000) + " minutes<br/>Water in bottle: " + String(getML(waterAmount)) + " ml<br/>You have consumed " + String(getML(drankAmount)) + " ml of water today";
-      webSocket.broadcastTXT(v);
+
+      // BROADCAST MESSAGE
+      int cssFill = map(totalWaterIntake, 0, waterGoal, 150, 0);
+      String s = String(cssFill) + " " + String(waterAmount) + " " + String(waterGoal);
+      String v = "Drinks: " + String(drinks) + "<br/>Time since last drink: " + String(drinkTimer/60000) + " minutes<br/>Water in bottle: " + String(getML(waterAmount)) + " ml<br/>You have consumed " + String(getML(totalWaterIntake)) + " ml of water today";
+      //webSocket.broadcastTXT(v);
+      webSocket.broadcastTXT(s);
 
 
       // PRINT VALUES
@@ -697,7 +748,12 @@ void loop() {
     } // if (myIMU.delt_t > 500)
   //} // if (AHRS)
   
+
+  // State of the led
   checkDrinkWarning();
+
+  // decay water
+  decayWater();
   
 }
 
