@@ -64,6 +64,25 @@ int warningThreshold2 = 20000;
 int warningThreshold3 = 30000;
 
 
+
+// CHECK IF LIFTED AND TILTED OVER 90
+void checkTilted() {
+  // CHECK TILT WHEN TILTING > 90 degrees
+  if(prevValue < 0 ){
+    //setColor(0,255,0);
+    if(myIMU.pitch > 0){
+      if(liftingState){
+        tilted = true; // tilted while lifting?
+      }
+      drinks++;
+      //setColor(255,0,255);
+      drinkTimer = 0;
+    }
+  }
+  prevValue = myIMU.pitch;
+}
+
+
 // function
 // check if weight is "stable" and read
 int analogSmoothRead(int pin) {
@@ -628,7 +647,7 @@ void loop() {
       myIMU.pitch *= RAD_TO_DEG;
       myIMU.yaw   *= RAD_TO_DEG;
 
-      // Declination of SparkFun Electronics (40°05'26.6"N 105°11'05.9"W) is
+      // Declination of KTH
       //   8° 30' E  ± 0° 21' (or 8.5°) on 2016-07-19
       // - http://www.ngdc.noaa.gov/geomag-web/#declination
       myIMU.yaw  -= 6.03;
@@ -650,21 +669,8 @@ void loop() {
       }
 
 
-
-      // CHECK TILT WHEN TILTING > 90 degrees
-      if(prevValue < 0 ){
-        //setColor(0,255,0);
-        if(myIMU.pitch > 0){
-          if(liftingState){
-            tilted = true; // tilted while lifting?
-          }
-          drinks++;
-          //setColor(255,0,255);
-          drinkTimer = 0;
-        }
-      }
-      prevValue = myIMU.pitch;
-
+      // check if lifted and tilted 
+      checkTilt();
 
       
       // READ FORCE SENSOR
@@ -683,6 +689,8 @@ void loop() {
         //Serial.println(drinkTimer);
       }
 
+
+      // for timing the IMU readings
       myIMU.count = millis();
       myIMU.sumCount = 0;
       myIMU.sum = 0;
