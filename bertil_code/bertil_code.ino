@@ -70,9 +70,9 @@ int TOLERANCE = 5;
 
 // drink warning levels
 // in milliliters
-int warningThreshold1 = 15;
+int warningThreshold1 = 5;
 int warningThreshold2 = 10;
-int warningThreshold3 = 5;
+int warningThreshold3 = 15;
 
 
 // RESET
