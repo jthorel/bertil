@@ -1,17 +1,17 @@
 .dropcontainer {
     margin: auto;
     background-image: url('emptydrop.png');
-    background-size: 150px 150px;
-    width: 150px;
-    height: 150px;
+    background-size: 300px 300px;
+    width: 300px;
+    height: 300px;
     
 }
 
 .dropcontainer img {
-    width: 150px;
-    height: 150px;
+    width: inherit;
+    height: inherit;
     position: absolute;
-    clip: rect(100px, 150px, 150px, 0px);
+    clip: rect(300px, 300px, 300px, 0px);
     -webkit-transition: clip 1s;
     transition: clip 1s;
     
@@ -19,11 +19,33 @@
 
 .container {
     max-width: 550px;
-    margin: 100px auto;
+    margin: 10px auto;
 }
 
 .text {
     text-align: center;
+}
+
+.button {
+    text-align: center;
+}
+
+body {
+	background: #FAFAFA;
+	width: 100%; 
+	height: 100%;
+	margin: 0;
+	font-family: Helvetica;
+}
+
+#header {
+	background-color: #00695C;
+	padding: 1%;
+	text-align: center;
+	color: white;
+	/*margin: 0px;
+	/*font-size: 52px;*/
+	letter-spacing: 4px;
 }
 
 /* css drop */

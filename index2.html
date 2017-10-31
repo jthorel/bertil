@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<!-- Bootstrap CSS -->
+<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.1.0/css/bootstrap.min.css">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<script src="https://unpkg.com/sweetalert/dist/sweetalert.min.js"></script>
+<style type="text/css">
+
+body {
+	background: #FAFAFA;
+	width: 100%; 
+	height: 100%;
+	margin: 0;
+	font-family: Helvetica;
+}
+
+#header {
+	background-color: #00695C;
+	padding: 5%;
+	text-align: center;
+	color: white;
+	/*margin: 0px;
+	/*font-size: 52px;*/
+	letter-spacing: 4px;
+}
+
+#setOptions {
+	margin-top: 150px;
+	text-align: center;
+	float: none;
+}
+
+#inputBox {
+	border-color: #616161;
+	border-radius: 5px;
+	margin-top: 5%;
+}
+
+.btn {
+	/*margin: 10px;
+	/*font-size: 50px;*/
+	letter-spacing: 2px;
+	background-color: #009688;
+	padding-left: 30%;
+	padding-right: 30%;
+	margin-top: 160px;
+	margin-bottom: 1500px;
+
+}
+
+h3 {
+	margin-bottom: 0;
+	margin-top: 0;
+}
+
+input.specialInput {
+	max-width: 100px;
+	padding: 0;
+	margin: 0;
+	background: none;
+	border: none;
+	text-align: center;
+}
+</style>
+<body>
+	<div id="header">
+		<h2> BERTIL APP </h2>
+	</div>
+	<div id="setOptions">
+		<h3>Number of drinks today</h3>
+		<h1><input class="specialInput" type="number" id="number" value="4"/></h1>
+		<p></p>
+		<h3>Amount of water today</h3>
+		<h1><input class="specialInput" type="number" id="amount" value="673"/> ml</h1>
+		
+	</div>
+	
+</body>
+
+<script>
+	var d = new Date();
+	var n = d.getTime();
+	
+	var diff = 60000;
+	var numSpan = document.querySelector('#number');
+	var amountSpan = document.querySelector('#amount');
+
+	function startTimer(duration, display) {
+	    var timer = duration, minutes, seconds;
+	    setInterval(function () {
+	        minutes = parseInt(timer / 60, 10)
+	        seconds = parseInt(timer % 60, 10);
+
+	        minutes = minutes < 10 ? "0" + minutes : minutes;
+	        seconds = seconds < 10 ? "0" + seconds : seconds;
+
+
+	        if (--timer < 0) {
+	            timer = duration;
+	            console.log(numSpan.value, amountSpan.value);
+	            var num = parseInt(numSpan.value);
+	            var amount = parseInt(amountSpan.value);
+	            numSpan.value = num + 1;
+	            amountSpan.value = amount + 82;
+	        }
+	    }, 1000);
+	}
+
+	window.onload = function () {
+	    var fiveMinutes = 60 * 0.5;
+	        //display = document.querySelector('#time');
+	    startTimer(fiveMinutes);
+	};
+</script>

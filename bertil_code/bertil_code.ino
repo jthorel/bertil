@@ -9,10 +9,11 @@
 // DEBUGGING
 #define AHRS true         // Set to false for basic data read
 #define SerialDebug false  // Set to true to get Serial output for debugging
-#define drinkDebug true
-#define wifi false
-#define forceDebug true
-#define waterDebug true
+#define drinkDebug false
+#define wifi true
+#define forceDebug false
+#define waterDebug false
+#define analogReadDebug false
 
 
 // Pin definitions
@@ -28,6 +29,7 @@ const int bluePin = 0;
 const int redPin = 14;
 const int greenPin = 15;
 int value = 0;
+ 
 
 MPU9250 myIMU;
 
@@ -36,8 +38,9 @@ int drinks = 0;
 float prevValue;
 const int R_FORCE = 800;
 const float VDC = 3.3;
-const int EMPTY_VALUE = 370;
+const int EMPTY_VALUE = 200;
 const int FILL_VALUE = 900;
+const int DEF_WATER_GOAL = 2000;
 unsigned long drinkTimer = 0;
 unsigned long delta = 0;
 unsigned long t = 0;
@@ -51,29 +54,40 @@ bool hasBeenTilted = false;
 int waterAmount = 0;
 int drankAmount = 0;
 int totalWaterIntake = 0;
-int totalWaterIntakeWarning = 500;
+int totalWaterIntakeWarning = 0;
 unsigned long decayTimer = 0;
-int waterGoal = 3000; // in milliliters
+int waterGoal = DEF_WATER_GOAL; // in milliliters
 
 
-const int waterDecayTime = 60000; // when to decay water (in milliseconds, 60000 equals 1 minute)
+const int waterDecayTime = 500; // when to decay water (in milliseconds, 60000 equals 1 minute)
 const int waterDecayAmount = waterGoal / (24*60); // decay this much (ml) per waterDecayTime
 
 
 // smoothing average resolution
-int SAMPLES = 50;
+int SAMPLES = 100;
 int TOLERANCE = 5;
 
 
 // drink warning levels
-// 10 sec & 20 sec
-int warningThreshold1 = 100;
-int warningThreshold2 = 200;
-int warningThreshold3 = 300;
+// in milliliters
+int warningThreshold1 = 15;
+int warningThreshold2 = 10;
+int warningThreshold3 = 5;
 
 
-
-
+// RESET
+void resetValues(){
+  drinks = 0;
+  drinkTimer = 0;
+  delta = 0;
+  t = 0;
+  waterAmount = 0;
+  drankAmount = 0;
+  totalWaterIntake = 0;
+  totalWaterIntakeWarning = 0;
+  decayTimer = 0;
+  waterGoal = DEF_WATER_GOAL; // in milliliters
+}
 
 
 // function
@@ -92,6 +106,10 @@ int analogSmoothRead(int pin) {
       delay(1); // set this to whatever you want
     }
     float meanSample = float(sampleSum)/float(SAMPLES);
+
+    if(analogReadDebug){
+      Serial.println("meansample: " + String(int(meanSample)));
+    }
   
     // HOW TO FIND STANDARD DEVIATION
     // STEP 1, FIND THE MEAN. (We Just did.)
@@ -127,10 +145,9 @@ int analogSmoothRead(int pin) {
 void checkTilted() {
   // CHECK TILT WHEN TILTING > 90 degrees
   float tilt = myIMU.pitch;
-  Serial.println(tilt);
-  if(prevValue < 0 ){
+  if(prevValue < -20 ){
     //setColor(0,255,0);
-    if(tilt > 0){
+    if(tilt > -20){
       if(liftingState){
         hasBeenTilted = true; // tilted while lifting?
         if(forceDebug){
@@ -143,6 +160,14 @@ void checkTilted() {
   }
   prevValue = tilt;
 }
+
+// SEnd variables to arduino
+void messageToApp(){
+  int cssFill = map(totalWaterIntake, 0, waterGoal, 300, 0);
+  String s = String(cssFill) + " " + String(waterAmount) + " " + String(waterGoal);
+  webSocket.broadcastTXT(s);
+}
+
 
 // DECAY total amount of water drank for warnings
 void decayWater(){
@@ -177,10 +202,10 @@ void checkLifted(){
   
   if(liftingState != lastLiftingState) { // state change
     if(!liftingState) {  // state changed from lifted to not lifted (set down bottle)
+      int newWaterAmount = getML(analogSmoothRead(A0));
       if(hasBeenTilted){ // has it been tilted? (not "is it currently tilted")
-        
         // read water amount in bottle
-        int newWaterAmount = getML(analogSmoothRead(A0));
+        
         Serial.println(" drank water! ");
         drinkTimer = 0;
         drinks++;
@@ -190,7 +215,7 @@ void checkLifted(){
            // water removed, drank water
           drankAmount = waterAmount - newWaterAmount;
           if(waterDebug){
-            Serial.println(String(drankAmount));
+            Serial.println("drank: " + String(drankAmount));
           }
 
           // add to total sum of water 
@@ -205,12 +230,14 @@ void checkLifted(){
         hasBeenTilted = false;
         
         if(forceDebug){
-          Serial.println("total water: "+String(getML(waterAmount)));
-          Serial.println("total consumed: "+String(getML(totalWaterIntake)));
+          Serial.println("total water: "+String(waterAmount));
+          Serial.println("total consumed: "+String(totalWaterIntake));
         }        
       } else { // set down without drinking, filled up?
         waterAmount = newWaterAmount;
       }
+      messageToApp();
+
     } 
   } else if(!liftingState && hasBeenTilted){  // it's not lifted and has not been "set down" (its grounded)
         hasBeenTilted = false;
@@ -223,9 +250,13 @@ void checkLifted(){
 
 // Convert sensor reading to water amount
 // 
-float getML(int s){
-  float map_factor = 750/(FILL_VALUE-EMPTY_VALUE);
-  float ml = map(s, EMPTY_VALUE, FILL_VALUE, 0, 750);
+int getML(int s){
+  //float map_factor = 750/(FILL_VALUE-EMPTY_VALUE);
+  s = constrain(s, EMPTY_VALUE, FILL_VALUE);
+  int ml = map(s, EMPTY_VALUE, FILL_VALUE, 0, 750);
+  if(analogReadDebug){
+    Serial.println("getml:" + String(ml));
+  }
   return ml;
 }
 
@@ -340,16 +371,16 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
             webSocket.sendTXT(num, "blue changed", lenght);
           }
           
-          if(text=="RESET"){
-           
-            analogWrite(bluePin,LOW);
-            analogWrite(redPin,HIGH);
-            analogWrite(greenPin,LOW);
+          if(text=="reset"){
+            resetValues();
             Serial.println("reset");
-            
-          }                              
-          webSocket.sendTXT(num, payload, lenght);
-          webSocket.broadcastTXT(payload, lenght);
+          }                         
+          
+          if(text=="fetch"){
+            messageToApp();
+          }
+          //webSocket.sendTXT(num, payload, lenght);
+          //webSocket.broadcastTXT(payload, lenght);
           break;
         }
         case WStype_BIN:
@@ -725,11 +756,10 @@ void loop() {
 
 
       // BROADCAST MESSAGE
-      int cssFill = map(totalWaterIntake, 0, waterGoal, 150, 0);
-      String s = String(cssFill) + " " + String(waterAmount) + " " + String(waterGoal);
-      String v = "Drinks: " + String(drinks) + "<br/>Time since last drink: " + String(drinkTimer/60000) + " minutes<br/>Water in bottle: " + String(getML(waterAmount)) + " ml<br/>You have consumed " + String(getML(totalWaterIntake)) + " ml of water today";
+      
+      //String v = "Drinks: " + String(drinks) + "<br/>Time since last drink: " + String(drinkTimer/60000) + " minutes<br/>Water in bottle: " + String((waterAmount)) + " ml<br/>You have consumed " + String((totalWaterIntake)) + " ml of water today";
       //webSocket.broadcastTXT(v);
-      webSocket.broadcastTXT(s);
+      
 
 
       // PRINT VALUES
