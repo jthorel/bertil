@@ -30,10 +30,23 @@
                 <img src='drop.png' id='drop'/>    
             </div>
             <div class='text' id='text'>
-                Daily goal: 3000ml
+                Daily goal<br/>3000 ml
             </div>
-            <div class='button'>
-                <button onclick='sendToSocket("reset")'>Reset</button>
+            <div class='bottlecontainer'>
+                <img src='bottle2.png' id='bottle'/>    
+            </div>
+            <div class='text' id='bottletext'>
+                Water in bottle<br/>150 ml
+            </div>
+            <div class='settings'>
+                <center>Settings</center>
+                <div class='button'>
+                    Water goal <input type='text' id='inputWaterGoal' value='2000'></input><button onclick='sendToSocket("x", "inputWaterGoal")'>Send</button>
+                    <br/>
+                    Water decay interval <input type='text' id='inputDecayInterval' value='60000'></input><button onclick='sendToSocket("y", "inputDecayInterval")'>Send</button>
+                    <br/>
+                    <button onclick='sendToSocket("reset")'>Reset</button>
+                </div>
             </div>
             
         </div>
@@ -43,13 +56,15 @@
         <input type="button" onClick="sendToSocket()" value="Tell sockeT!"/>-->
         <script type="text/javascript">
             //sendGetReq();
-            var connection = new WebSocket("ws://192.168.43.110", ["arduino"]);
+            //var connection = new WebSocket("ws://192.168.43.110", ["arduino"]); // emmas
+            var connection = new WebSocket("ws://172.20.10.5", ["arduino"]);
             //connection = new WebSocket(ipValue, ['arduino']);
 
             connection.onopen = function () {
                 // connection.send('Message from Browser to ESP8266 yay its Working!! ' + new Date());
                 // connection.send('ping');
                 //ws.send("Hello, Ardunio");
+                console.log("connected");
                 connection.send("fetch");
             };
             connection.onerror = function (error) {
@@ -57,13 +72,20 @@
             };
 
             connection.onmessage = function (event) {
-            //console.log(event);
-            parseMessage(event.data);
+                //console.log(event);
+                parseMessage(event.data);
             }
 
             function sendToSocket(message) {
                 console.log("Sending message");
                 connection.send(message);
+            }
+            
+            function sendToSocket(setting, id) {
+                var value = document.getElementById(id).value;
+                var s = setting + value;
+                console.log("Sending message: " + s);
+                connection.send(setting + value);
             }
 
             function sendGetReq() {
@@ -100,14 +122,25 @@
                 document.getElementById('drop').style.clip = "rect("+fill+"px, 300px, 300px, 0px)";
             }
 
+            function fillBottle(fill){
+                document.getElementById('bottle').style.clip = "rect("+fill+"px, 100px, 100px, 0px)";
+            }
+
             function parseMessage(message){
                 var values = message.split(' ');
                 var totWaterIntake = parseInt(values[0]);
                 var waterAmount = parseInt(values[1]);
                 var waterGoal = parseInt(values[2]);
+                var bottleFill = parseInt(values[3]);
                 fillDrop(totWaterIntake);
-                document.getElementById('text').innerHTML = "Daily goal: " + waterGoal + "ml<br/>Water in bottle: "+waterAmount + "ml";
+                fillBottle(bottleFill);
+                console.log(bottleFill);
+                document.getElementById('text').innerHTML = "Daily goal: " + waterGoal + " ml";
+                document.getElementById('bottletext').innerHTML = "Water in bottle: "+waterAmount + " ml";
             }
+
+            fillBottle(50);
+            fillDrop(150);
 
         </script>
 

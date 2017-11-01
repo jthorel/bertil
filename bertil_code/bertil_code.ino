@@ -13,7 +13,7 @@
 #define wifi true
 #define forceDebug false
 #define waterDebug false
-#define analogReadDebug false
+#define analogReadDebug true
 
 
 // Pin definitions
@@ -38,9 +38,9 @@ int drinks = 0;
 float prevValue;
 const int R_FORCE = 800;
 const float VDC = 3.3;
-const int EMPTY_VALUE = 200;
+const int EMPTY_VALUE = 370;
 const int FILL_VALUE = 900;
-const int DEF_WATER_GOAL = 2000;
+const int DEFAULT_WATER_GOAL = 2000;
 unsigned long drinkTimer = 0;
 unsigned long delta = 0;
 unsigned long t = 0;
@@ -56,11 +56,11 @@ int drankAmount = 0;
 int totalWaterIntake = 0;
 int totalWaterIntakeWarning = 0;
 unsigned long decayTimer = 0;
-int waterGoal = DEF_WATER_GOAL; // in milliliters
+int waterGoal = DEFAULT_WATER_GOAL; // in milliliters
 
 
-const int waterDecayTime = 500; // when to decay water (in milliseconds, 60000 equals 1 minute)
-const int waterDecayAmount = waterGoal / (24*60); // decay this much (ml) per waterDecayTime
+int waterDecayTime = 60000; // when to decay water (in milliseconds), for real world use 60000 is correct (1 minute) 
+int waterDecayAmount = waterGoal / (24*60); // decay this much (ml) per minute
 
 
 // smoothing average resolution
@@ -86,7 +86,7 @@ void resetValues(){
   totalWaterIntake = 0;
   totalWaterIntakeWarning = 0;
   decayTimer = 0;
-  waterGoal = DEF_WATER_GOAL; // in milliliters
+  waterGoal = DEFAULT_WATER_GOAL; // in milliliters
 }
 
 
@@ -164,7 +164,8 @@ void checkTilted() {
 // SEnd variables to arduino
 void messageToApp(){
   int cssFill = map(totalWaterIntake, 0, waterGoal, 300, 0);
-  String s = String(cssFill) + " " + String(waterAmount) + " " + String(waterGoal);
+  int bottleFill = map(waterAmount, 0, 750, 100, 0);
+  String s = String(cssFill) + " " + String(waterAmount) + " " + String(waterGoal) + " " + String(bottleFill);
   webSocket.broadcastTXT(s);
 }
 
@@ -225,6 +226,9 @@ void checkLifted(){
         }
         // update new water amount in bottle
         waterAmount = newWaterAmount;
+        if(waterDebug){
+          Serial.println("wateramount: " + String(waterAmount));
+        }
 
         // reset has been tilted
         hasBeenTilted = false;
@@ -345,21 +349,28 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t lenght
           }
             
           if(text.startsWith("x")){  
-            String xVal=(text.substring(text.indexOf("x")+1,text.length())); 
-            int xInt = xVal.toInt();
-            analogWrite(redPin,xInt); 
-            Serial.println(xVal);
-            webSocket.sendTXT(num, "red changed", lenght);
+            // String xVal=(text.substring(text.indexOf("x")+1,text.length())); 
+            // int xInt = xVal.toInt();
+            // analogWrite(redPin,xInt); 
+            // Serial.println(xVal);
+            // webSocket.sendTXT(num, "red changed", lenght);
+            String value = (text.substring(text.indexOf("x")+1,text.length()));
+            int val = value.toInt();
+            waterGoal = val;
+
+            // change how much you need to drink per minute
+            waterDecayAmount = waterGoal / (24*60);
           }
 
 
           if(text.startsWith("y")){
-            
-            String yVal=(text.substring(text.indexOf("y")+1,text.length())); 
-            int yInt = yVal.toInt();
-            analogWrite(greenPin,yInt); 
-            Serial.println(yVal);
-            webSocket.sendTXT(num, "green changed", lenght);
+
+            // for debugging and showcasing
+            // change the decaytimer to showcase warning levels
+            // real world use it should be 60000
+            String value = (text.substring(text.indexOf("y")+1,text.length()));
+            int val = value.toInt();
+            waterDecayTime = val;
           }
 
           if(text.startsWith("z")){

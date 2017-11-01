@@ -4,6 +4,7 @@
     background-size: 300px 300px;
     width: 300px;
     height: 300px;
+
     
 }
 
@@ -14,20 +15,49 @@
     clip: rect(300px, 300px, 300px, 0px);
     -webkit-transition: clip 1s;
     transition: clip 1s;
+
+    
+    
+}
+
+.bottlecontainer {
+    margin: 100px auto 10px auto;
+    background-image: url('bottle.png');
+    background-size: 100px 100px;
+    width: 100px;
+    height: 100px;
+
+    
+}
+
+.bottlecontainer img {
+    width: inherit;
+    height: inherit;
+    position: absolute;
+    clip: rect(100px, 100px, 100px, 0px);
+    -webkit-transition: clip 1s;
+    transition: clip 1s;
+
+    
     
 }
 
 .container {
     max-width: 550px;
-    margin: 10px auto;
+    margin: 100px auto;
 }
 
 .text {
+    margin-top: 10px;
     text-align: center;
 }
 
 .button {
     text-align: center;
+}
+
+.settings {
+    margin-top: 500px;
 }
 
 body {
