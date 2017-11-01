@@ -39,7 +39,7 @@ float prevValue;
 const int R_FORCE = 800;
 const float VDC = 3.3;
 const int EMPTY_VALUE = 370;
-const int FILL_VALUE = 900;
+const int FILL_VALUE = 1024;
 const int DEFAULT_WATER_GOAL = 2000;
 unsigned long drinkTimer = 0;
 unsigned long delta = 0;

@@ -45,7 +45,7 @@
                     <br/>
                     Water decay interval <input type='text' id='inputDecayInterval' value='60000'></input><button onclick='sendToSocket("y", "inputDecayInterval")'>Send</button>
                     <br/>
-                    <button onclick='sendToSocket("reset")'>Reset</button>
+                    <button onclick='resetSocket("reset","")'>Reset</button>
                 </div>
             </div>
             
@@ -56,8 +56,8 @@
         <input type="button" onClick="sendToSocket()" value="Tell sockeT!"/>-->
         <script type="text/javascript">
             //sendGetReq();
-            //var connection = new WebSocket("ws://192.168.43.110", ["arduino"]); // emmas
-            var connection = new WebSocket("ws://172.20.10.5", ["arduino"]);
+            var connection = new WebSocket("ws://192.168.43.110", ["arduino"]); // emmas
+            //var connection = new WebSocket("ws://172.20.10.5", ["arduino"]);
             //connection = new WebSocket(ipValue, ['arduino']);
 
             connection.onopen = function () {
@@ -76,7 +76,7 @@
                 parseMessage(event.data);
             }
 
-            function sendToSocket(message) {
+            function resetSocket(message) {
                 console.log("Sending message");
                 connection.send(message);
             }
